@@ -52,6 +52,42 @@ pub mod board {
 ];
 }
 
+fn rotate_left(n: &u64, m: &u32) -> u64 {
+    n.rotate_left(*m)
+}
+
+fn rotate_right(n: &u64, m: &u32) -> u64 {
+    n.rotate_right(*m)
+}
+
+/**
+ * returns if the select piece is on the 'a' file
+ */
+fn is_on_file_a(bit_piece: &u64) -> bool {
+    bit_piece & board::FILE_A > 0
+}
+
+/**
+ * returns if the select piece is on the 'h' file
+ */
+fn is_on_file_h(bit_piece: &u64) -> bool {
+    bit_piece & board::FILE_H > 0
+}
+
+/**
+ * returns if the select piece is on the '8' rank
+ */
+fn is_on_rank_8(bit_piece: &u64) -> bool {
+    bit_piece & board::RANK_8 > 0
+}
+
+/**
+ * returns if the select piece is on the '1' rank
+ */
+fn is_on_rank_1(bit_piece: &u64) -> bool {
+    bit_piece & board::RANK_1 > 0
+}
+
 /**
  * Each board is stored as bitmaps of the pieces, since a board is 8x8 we use a u64
  * The bit position corresponds to a place on the board:
@@ -103,85 +139,42 @@ impl Chess {
         let is_white = { bit_piece & white_bits > 0 };
         let mut moves = Vec::<(u64, u64)>::new();
 
-        // gets all the moves by moving left (towards the 'a' file)
-        let mut test_move = bit_piece.clone();
-        loop {
-            test_move = test_move.rotate_left(1);
-
-            // the piece looped to the column on the right
-            if Self::is_on_file_h(&test_move) {
-                break;
-            }
-
-            match Self::approve_move(is_white, &test_move, &white_bits, &black_bits) {
-                (true, true) => moves.push((bit_piece, test_move)),
-                (true, false) => {
-                    moves.push((bit_piece, test_move));
-                    break;
-                }
-                (false, _) => break,
-            }
-        }
-
-        // gets all the moves by moving right (towards the 'h' file)
-        let mut test_move = bit_piece.clone();
-        loop {
-            test_move = test_move.rotate_right(1);
-
-            // the piece looped to the column on the left
-            if Self::is_on_file_a(&test_move) {
-                break;
-            }
-
-            match Self::approve_move(is_white, &test_move, &white_bits, &black_bits) {
-                (true, true) => moves.push((bit_piece, test_move)),
-                (true, false) => {
-                    moves.push((bit_piece, test_move));
-                    break;
-                }
-                (false, _) => break,
-            }
-        }
-
-        // gets all the moves by moving up (towards the '8' rank)
-        let mut test_move = bit_piece.clone();
-        loop {
-            test_move = test_move.rotate_left(8);
-
-            // the piece looped to the row on the bottom
-            if Self::is_on_rank_1(&test_move) {
-                break;
-            }
-
-            match Self::approve_move(is_white, &test_move, &white_bits, &black_bits) {
-                (true, true) => moves.push((bit_piece, test_move)),
-                (true, false) => {
-                    moves.push((bit_piece, test_move));
-                    break;
-                }
-                (false, _) => break,
-            }
-        }
-
-        // gets all the moves by moving down (towards the '1' rank)
-        let mut test_move = bit_piece.clone();
-        loop {
-            test_move = test_move.rotate_right(8);
-
-            // the piece looped to the row on the top
-            if Self::is_on_rank_8(&test_move) {
-                break;
-            }
-
-            match Self::approve_move(is_white, &test_move, &white_bits, &black_bits) {
-                (true, true) => moves.push((bit_piece, test_move)),
-                (true, false) => {
-                    moves.push((bit_piece, test_move));
-                    break;
-                }
-                (false, _) => break,
-            }
-        }
+        moves.append(&mut Self::get_marching_moves(
+            rotate_left,
+            1,
+            is_on_file_h,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+        moves.append(&mut Self::get_marching_moves(
+            rotate_right,
+            1,
+            is_on_file_a,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+        moves.append(&mut Self::get_marching_moves(
+            rotate_left,
+            8,
+            is_on_rank_8,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+        moves.append(&mut Self::get_marching_moves(
+            rotate_right,
+            8,
+            is_on_rank_1,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
 
         moves
     }
@@ -209,6 +202,39 @@ impl Chess {
         }
     }
 
+    fn get_marching_moves(
+        shifting_fn: fn(&u64, &u32) -> u64,
+        shifting_arg: u32,
+        break_fn: fn(&u64) -> bool,
+        is_white: bool,
+        bit_piece: &u64,
+        white_bits: &u64,
+        black_bits: &u64,
+    ) -> Vec<(u64, u64)> {
+        let mut moves = Vec::<(u64, u64)>::new();
+        let mut test_move = bit_piece.clone();
+
+        loop {
+            test_move = shifting_fn(&test_move, &shifting_arg);
+
+            // the piece looped to the row on the top
+            if break_fn(&test_move) {
+                break;
+            }
+
+            match Self::approve_move(is_white, &test_move, &white_bits, &black_bits) {
+                (true, true) => moves.push((*bit_piece, test_move)),
+                (true, false) => {
+                    moves.push((*bit_piece, test_move));
+                    break;
+                }
+                (false, _) => break,
+            }
+        }
+
+        moves
+    }
+
     /**
      * gets the bit board of all the white pieces
      */
@@ -231,34 +257,6 @@ impl Chess {
             | self.bit_boards[board::index::black::ROOK]
             | self.bit_boards[board::index::black::QUEEN]
             | self.bit_boards[board::index::black::KING]
-    }
-
-    /**
-     * returns if the select piece is on the 'a' file
-     */
-    fn is_on_file_a(bit_piece: &u64) -> bool {
-        bit_piece & board::FILE_A > 0
-    }
-
-    /**
-     * returns if the select piece is on the 'h' file
-     */
-    fn is_on_file_h(bit_piece: &u64) -> bool {
-        bit_piece & board::FILE_H > 0
-    }
-
-    /**
-     * returns if the select piece is on the '8' rank
-     */
-    fn is_on_rank_8(bit_piece: &u64) -> bool {
-        bit_piece & board::RANK_8 > 0
-    }
-
-    /**
-     * returns if the select piece is on the '1' rank
-     */
-    fn is_on_rank_1(bit_piece: &u64) -> bool {
-        bit_piece & board::RANK_1 > 0
     }
 
     /**
