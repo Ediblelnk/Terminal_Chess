@@ -1,5 +1,6 @@
 use terminal_chess as lib;
 
 fn main() {
-    println!("Hello, world!");
+    let c = lib::Chess::new();
+    c.print_board();
 }
