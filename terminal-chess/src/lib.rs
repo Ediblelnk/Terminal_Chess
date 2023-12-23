@@ -295,6 +295,44 @@ impl Chess {
         moves
     }
 
+    pub fn get_white_pawn_moves(self: &Self, bit_piece: u64) -> Vec<(u64, u64)> {
+        let white_bits = self.get_white_bit_board();
+        let black_bits = self.get_black_bit_board();
+        let all_bits = white_bits | black_bits;
+        let mut moves = Vec::<(u64, u64)>::new();
+
+        // strictly moving move(s)
+        let move_1 = bit_math::rotate_left(&bit_piece, &8);
+        if move_1 & all_bits == 0 {
+            moves.push((bit_piece, move_1));
+
+            if bit_math::is_rank_2(&bit_piece) {
+                let move_2 = bit_math::rotate_left(&bit_piece, &16);
+                if move_2 & all_bits == 0 {
+                    moves.push((bit_piece, move_2));
+                }
+            }
+        }
+
+        // strictly attacking moves
+        // left attack
+        if !bit_math::is_file_a(&bit_piece) {
+            let left_attack = bit_math::rotate_left(&bit_piece, &9);
+            if left_attack & black_bits > 0 {
+                moves.push((bit_piece, left_attack));
+            }
+        }
+        // right attack
+        if !bit_math::is_file_h(&bit_piece) {
+            let right_attack = bit_math::rotate_left(&bit_piece, &7);
+            if right_attack & black_bits > 0 {
+                moves.push((bit_piece, right_attack));
+            }
+        }
+
+        moves
+    }
+
     /**
      * approves a move if black capturing white, white capturing black, or either capturing nothing.
      * the first bool is approval of move, second bool is whether it ends the search or not
