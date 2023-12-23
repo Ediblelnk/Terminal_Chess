@@ -12,6 +12,10 @@ pub mod board {
         0b_00000001_00000001_00000001_00000001_00000001_00000001_00000001_00000001;
     pub const RANK_8: u64 =
         0b_11111111_00000000_00000000_00000000_00000000_00000000_00000000_00000000;
+    pub const RANK_7: u64 =
+        0b_00000000_11111111_00000000_00000000_00000000_00000000_00000000_00000000;
+    pub const RANK_2: u64 =
+        0b_00000000_00000000_00000000_00000000_00000000_00000000_11111111_00000000;
     pub const RANK_1: u64 =
         0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_11111111;
     pub mod index {
@@ -52,40 +56,62 @@ pub mod board {
 ];
 }
 
-fn rotate_left(n: &u64, m: &u32) -> u64 {
-    n.rotate_left(*m)
-}
+pub mod bit_math {
+    use crate::board;
 
-fn rotate_right(n: &u64, m: &u32) -> u64 {
-    n.rotate_right(*m)
-}
+    /**
+     * rotates (bitwise) n to the left by m bits
+     */
+    pub fn rotate_left(n: &u64, m: &u32) -> u64 {
+        n.rotate_left(*m)
+    }
 
-/**
- * returns if the select piece is on the 'a' file
- */
-fn is_on_file_a(bit_piece: &u64) -> bool {
-    bit_piece & board::FILE_A > 0
-}
+    /**
+     * rotates (bitwise) n to the right by m bits
+     */
+    pub fn rotate_right(n: &u64, m: &u32) -> u64 {
+        n.rotate_right(*m)
+    }
 
-/**
- * returns if the select piece is on the 'h' file
- */
-fn is_on_file_h(bit_piece: &u64) -> bool {
-    bit_piece & board::FILE_H > 0
-}
+    pub fn is_file_a(bit_piece: &u64) -> bool {
+        bit_piece & board::FILE_A > 0
+    }
 
-/**
- * returns if the select piece is on the '8' rank
- */
-fn is_on_rank_8(bit_piece: &u64) -> bool {
-    bit_piece & board::RANK_8 > 0
-}
+    pub fn is_file_h(bit_piece: &u64) -> bool {
+        bit_piece & board::FILE_H > 0
+    }
 
-/**
- * returns if the select piece is on the '1' rank
- */
-fn is_on_rank_1(bit_piece: &u64) -> bool {
-    bit_piece & board::RANK_1 > 0
+    pub fn is_rank_8(bit_piece: &u64) -> bool {
+        bit_piece & board::RANK_8 > 0
+    }
+
+    pub fn is_rank_7(bit_piece: &u64) -> bool {
+        bit_piece & board::RANK_7 > 0
+    }
+
+    pub fn is_rank_2(bit_piece: &u64) -> bool {
+        bit_piece & board::RANK_2 > 0
+    }
+
+    pub fn is_rank_1(bit_piece: &u64) -> bool {
+        bit_piece & board::RANK_1 > 0
+    }
+
+    pub fn is_rank_1_or_file_a(bit_piece: &u64) -> bool {
+        is_rank_1(bit_piece) || is_file_a(bit_piece)
+    }
+
+    pub fn is_rank_1_or_file_h(bit_piece: &u64) -> bool {
+        is_rank_1(bit_piece) || is_file_h(bit_piece)
+    }
+
+    pub fn is_rank_8_or_file_a(bit_piece: &u64) -> bool {
+        is_rank_8(bit_piece) || is_file_a(bit_piece)
+    }
+
+    pub fn is_rank_8_or_file_h(bit_piece: &u64) -> bool {
+        is_rank_8(bit_piece) || is_file_h(bit_piece)
+    }
 }
 
 /**
@@ -111,6 +137,9 @@ pub struct Chess {
 struct NotFound;
 
 impl Chess {
+    /**
+     * sets up the bit board for a default game of chess
+     */
     pub fn new() -> Self {
         Self {
             bit_boards: [
@@ -140,41 +169,128 @@ impl Chess {
         let mut moves = Vec::<(u64, u64)>::new();
 
         moves.append(&mut Self::get_marching_moves(
-            rotate_left,
+            bit_math::rotate_left,
             1,
-            is_on_file_h,
+            bit_math::is_file_h,
             is_white,
             &bit_piece,
             &white_bits,
             &black_bits,
         ));
         moves.append(&mut Self::get_marching_moves(
-            rotate_right,
+            bit_math::rotate_right,
             1,
-            is_on_file_a,
+            bit_math::is_file_a,
             is_white,
             &bit_piece,
             &white_bits,
             &black_bits,
         ));
         moves.append(&mut Self::get_marching_moves(
-            rotate_left,
+            bit_math::rotate_left,
             8,
-            is_on_rank_8,
+            bit_math::is_rank_8,
             is_white,
             &bit_piece,
             &white_bits,
             &black_bits,
         ));
         moves.append(&mut Self::get_marching_moves(
-            rotate_right,
+            bit_math::rotate_right,
             8,
-            is_on_rank_1,
+            bit_math::is_rank_1,
             is_white,
             &bit_piece,
             &white_bits,
             &black_bits,
         ));
+
+        moves
+    }
+
+    /**
+     * returns the move pairs for the bit_piece when moved as a bishop
+     */
+    pub fn get_diagonal_moves(self: &Self, bit_piece: u64) -> Vec<(u64, u64)> {
+        let white_bits = self.get_white_bit_board();
+        let black_bits = self.get_black_bit_board();
+        let is_white = { bit_piece & white_bits > 0 };
+        let mut moves = Vec::<(u64, u64)>::new();
+
+        moves.append(&mut Self::get_marching_moves(
+            bit_math::rotate_left,
+            9,
+            bit_math::is_rank_1_or_file_h,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+        moves.append(&mut Self::get_marching_moves(
+            bit_math::rotate_left,
+            7,
+            bit_math::is_rank_1_or_file_a,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+        moves.append(&mut Self::get_marching_moves(
+            bit_math::rotate_right,
+            9,
+            bit_math::is_rank_8_or_file_a,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+        moves.append(&mut Self::get_marching_moves(
+            bit_math::rotate_right,
+            7,
+            bit_math::is_rank_8_or_file_h,
+            is_white,
+            &bit_piece,
+            &white_bits,
+            &black_bits,
+        ));
+
+        moves
+    }
+
+    pub fn get_black_pawn_moves(self: &Self, bit_piece: u64) -> Vec<(u64, u64)> {
+        let white_bits = self.get_white_bit_board();
+        let black_bits = self.get_black_bit_board();
+        let all_bits = white_bits | black_bits;
+        let mut moves = Vec::<(u64, u64)>::new();
+
+        // strictly moving move(s)
+        let move_1 = bit_math::rotate_right(&bit_piece, &8);
+        if move_1 & all_bits == 0 {
+            moves.push((bit_piece, move_1));
+
+            if bit_math::is_rank_7(&bit_piece) {
+                let move_2 = bit_math::rotate_right(&bit_piece, &16);
+                if move_2 & all_bits == 0 {
+                    moves.push((bit_piece, move_2));
+                }
+            }
+        }
+
+        // strictly attacking moves
+        // left attack
+        if !bit_math::is_file_a(&bit_piece) {
+            let left_attack = bit_math::rotate_right(&bit_piece, &7);
+            if left_attack & white_bits > 0 {
+                moves.push((bit_piece, left_attack));
+            }
+        }
+        // right attack
+        if !bit_math::is_file_h(&bit_piece) {
+            let right_attack = bit_math::rotate_right(&bit_piece, &9);
+            if right_attack & white_bits > 0 {
+                moves.push((bit_piece, right_attack));
+            }
+        }
 
         moves
     }
@@ -202,6 +318,9 @@ impl Chess {
         }
     }
 
+    /**
+     * returns the moves that are valid when marching according to the specified bit rotate amount
+     */
     fn get_marching_moves(
         shifting_fn: fn(&u64, &u32) -> u64,
         shifting_arg: u32,
