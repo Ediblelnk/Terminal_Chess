@@ -63,20 +63,6 @@ pub mod board {
 pub mod bit_math {
     use crate::board;
 
-    /**
-     * rotates (bitwise) n to the left by m bits
-     */
-    pub fn rotate_left(n: &u64, m: &u32) -> u64 {
-        n.rotate_left(*m)
-    }
-
-    /**
-     * rotates (bitwise) n to the right by m bits
-     */
-    pub fn rotate_right(n: &u64, m: &u32) -> u64 {
-        n.rotate_right(*m)
-    }
-
     pub fn is_file_a(bit_piece: &u64) -> bool {
         bit_piece & board::FILE_A > 0
     }
@@ -239,12 +225,12 @@ impl Chess {
         let mut moves = Vec::<(u64, u64)>::new();
 
         // strictly moving move(s)
-        let move_1 = bit_math::rotate_right(&bit_piece, &8);
+        let move_1 = bit_piece.rotate_right(8);
         if move_1 & all_bits == 0 {
             moves.push((*bit_piece, move_1));
 
             if bit_math::is_rank_7(&bit_piece) {
-                let move_2 = bit_math::rotate_right(&bit_piece, &16);
+                let move_2 = bit_piece.rotate_right(16);
                 if move_2 & all_bits == 0 {
                     moves.push((*bit_piece, move_2));
                 }
@@ -254,14 +240,14 @@ impl Chess {
         // strictly attacking moves
         // left attack
         if !bit_math::is_file_a(&bit_piece) {
-            let left_attack = bit_math::rotate_right(&bit_piece, &7);
+            let left_attack = bit_piece.rotate_right(7);
             if left_attack & self.white_bits > 0 {
                 moves.push((*bit_piece, left_attack));
             }
         }
         // right attack
         if !bit_math::is_file_h(&bit_piece) {
-            let right_attack = bit_math::rotate_right(&bit_piece, &9);
+            let right_attack = bit_piece.rotate_right(9);
             if right_attack & self.white_bits > 0 {
                 moves.push((*bit_piece, right_attack));
             }
@@ -275,12 +261,12 @@ impl Chess {
         let mut moves = Vec::<(u64, u64)>::new();
 
         // strictly moving move(s)
-        let move_1 = bit_math::rotate_left(&bit_piece, &8);
+        let move_1 = bit_piece.rotate_left(8);
         if move_1 & all_bits == 0 {
             moves.push((*bit_piece, move_1));
 
             if bit_math::is_rank_2(&bit_piece) {
-                let move_2 = bit_math::rotate_left(&bit_piece, &16);
+                let move_2 = bit_piece.rotate_left(16);
                 if move_2 & all_bits == 0 {
                     moves.push((*bit_piece, move_2));
                 }
@@ -290,14 +276,14 @@ impl Chess {
         // strictly attacking moves
         // left attack
         if !bit_math::is_file_a(&bit_piece) {
-            let left_attack = bit_math::rotate_left(&bit_piece, &9);
+            let left_attack = bit_piece.rotate_left(9);
             if left_attack & self.black_bits > 0 {
                 moves.push((*bit_piece, left_attack));
             }
         }
         // right attack
         if !bit_math::is_file_h(&bit_piece) {
-            let right_attack = bit_math::rotate_left(&bit_piece, &7);
+            let right_attack = bit_piece.rotate_left(7);
             if right_attack & self.black_bits > 0 {
                 moves.push((*bit_piece, right_attack));
             }
