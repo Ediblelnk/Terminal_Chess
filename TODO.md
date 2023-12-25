@@ -1,3 +1,3 @@
 # Things to Do
 
-- [ ]  Replace rotate_l/r with just >> whenever possible
+- [x]  Replace rotate_l/r with just >> whenever possible

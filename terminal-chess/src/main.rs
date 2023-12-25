@@ -32,4 +32,6 @@ fn main() {
         );
     }
     println!();
+
+    println!("Eval: {}", c.evaluate(&true));
 }
