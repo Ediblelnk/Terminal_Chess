@@ -1,4 +1,7 @@
-use board::{index, weights};
+use board::{
+    index::{self, black, white},
+    weights,
+};
 
 pub mod board {
     pub const RANKS: usize = 8;
@@ -170,22 +173,22 @@ impl Chess {
      * sums up the material for white and returns the sum
      */
     fn material_sum_white(self: &Self) -> u32 {
-        self.bit_boards[index::white::PAWN].count_ones() * weights::PAWN
-            + self.bit_boards[index::white::KNIGHT].count_ones() * weights::KNIGHT
-            + self.bit_boards[index::white::BISHOP].count_ones() * weights::BISHOP
-            + self.bit_boards[index::white::ROOK].count_ones() * weights::ROOK
-            + self.bit_boards[index::white::QUEEN].count_ones() * weights::QUEEN
+        self.bit_boards[white::PAWN].count_ones() * weights::PAWN
+            + self.bit_boards[white::KNIGHT].count_ones() * weights::KNIGHT
+            + self.bit_boards[white::BISHOP].count_ones() * weights::BISHOP
+            + self.bit_boards[white::ROOK].count_ones() * weights::ROOK
+            + self.bit_boards[white::QUEEN].count_ones() * weights::QUEEN
     }
 
     /**
      * sums up the material for black and returns the sum
      */
     fn material_sum_black(self: &Self) -> u32 {
-        self.bit_boards[index::black::PAWN].count_ones() * weights::PAWN
-            + self.bit_boards[index::black::KNIGHT].count_ones() * weights::KNIGHT
-            + self.bit_boards[index::black::BISHOP].count_ones() * weights::BISHOP
-            + self.bit_boards[index::black::ROOK].count_ones() * weights::ROOK
-            + self.bit_boards[index::black::QUEEN].count_ones() * weights::QUEEN
+        self.bit_boards[black::PAWN].count_ones() * weights::PAWN
+            + self.bit_boards[black::KNIGHT].count_ones() * weights::KNIGHT
+            + self.bit_boards[black::BISHOP].count_ones() * weights::BISHOP
+            + self.bit_boards[black::ROOK].count_ones() * weights::ROOK
+            + self.bit_boards[black::QUEEN].count_ones() * weights::QUEEN
     }
 
     pub fn get_white_moves(self: &Self) -> Vec<(u64, u64)> {
@@ -199,15 +202,15 @@ impl Chess {
                 continue;
             }
 
-            if bit_piece & self.bit_boards[index::white::PAWN] > 0 {
+            if bit_piece & self.bit_boards[white::PAWN] > 0 {
                 moves.append(&mut self.get_white_pawn_moves(&bit_piece));
-            } else if bit_piece & self.bit_boards[index::white::KNIGHT] > 0 {
+            } else if bit_piece & self.bit_boards[white::KNIGHT] > 0 {
                 moves.append(&mut self.get_knight_moves(&bit_piece, &true));
-            } else if bit_piece & self.bit_boards[index::white::BISHOP] > 0 {
+            } else if bit_piece & self.bit_boards[white::BISHOP] > 0 {
                 moves.append(&mut self.get_diagonal_moves(&bit_piece, &true));
-            } else if bit_piece & self.bit_boards[index::white::ROOK] > 0 {
+            } else if bit_piece & self.bit_boards[white::ROOK] > 0 {
                 moves.append(&mut self.get_cartesian_moves(&bit_piece, &true));
-            } else if bit_piece & self.bit_boards[index::white::QUEEN] > 0 {
+            } else if bit_piece & self.bit_boards[white::QUEEN] > 0 {
                 moves.append(&mut self.get_cartesian_moves(&bit_piece, &true));
                 moves.append(&mut self.get_diagonal_moves(&bit_piece, &true));
             } else {
@@ -231,15 +234,15 @@ impl Chess {
                 continue;
             }
 
-            if bit_piece & self.bit_boards[index::black::PAWN] > 0 {
+            if bit_piece & self.bit_boards[black::PAWN] > 0 {
                 moves.append(&mut self.get_black_pawn_moves(&bit_piece));
-            } else if bit_piece & self.bit_boards[index::black::KNIGHT] > 0 {
+            } else if bit_piece & self.bit_boards[black::KNIGHT] > 0 {
                 moves.append(&mut self.get_knight_moves(&bit_piece, &false));
-            } else if bit_piece & self.bit_boards[index::black::BISHOP] > 0 {
+            } else if bit_piece & self.bit_boards[black::BISHOP] > 0 {
                 moves.append(&mut self.get_diagonal_moves(&bit_piece, &false));
-            } else if bit_piece & self.bit_boards[index::black::ROOK] > 0 {
+            } else if bit_piece & self.bit_boards[black::ROOK] > 0 {
                 moves.append(&mut self.get_cartesian_moves(&bit_piece, &false));
-            } else if bit_piece & self.bit_boards[index::black::QUEEN] > 0 {
+            } else if bit_piece & self.bit_boards[black::QUEEN] > 0 {
                 moves.append(&mut self.get_cartesian_moves(&bit_piece, &false));
                 moves.append(&mut self.get_diagonal_moves(&bit_piece, &false));
             } else {
@@ -641,12 +644,12 @@ impl Chess {
      * gets the bit board of all the white pieces
      */
     fn update_white_bits(self: &mut Self) -> &mut Self {
-        self.white_bits = self.bit_boards[index::white::PAWN]
-            | self.bit_boards[index::white::KNIGHT]
-            | self.bit_boards[index::white::BISHOP]
-            | self.bit_boards[index::white::ROOK]
-            | self.bit_boards[index::white::QUEEN]
-            | self.bit_boards[index::white::KING];
+        self.white_bits = self.bit_boards[white::PAWN]
+            | self.bit_boards[white::KNIGHT]
+            | self.bit_boards[white::BISHOP]
+            | self.bit_boards[white::ROOK]
+            | self.bit_boards[white::QUEEN]
+            | self.bit_boards[white::KING];
 
         self
     }
@@ -655,12 +658,12 @@ impl Chess {
      * gets the bit board of all the black pieces
      */
     fn update_black_bits(self: &mut Self) -> &mut Self {
-        self.black_bits = self.bit_boards[index::black::PAWN]
-            | self.bit_boards[index::black::KNIGHT]
-            | self.bit_boards[index::black::BISHOP]
-            | self.bit_boards[index::black::ROOK]
-            | self.bit_boards[index::black::QUEEN]
-            | self.bit_boards[index::black::KING];
+        self.black_bits = self.bit_boards[black::PAWN]
+            | self.bit_boards[black::KNIGHT]
+            | self.bit_boards[black::BISHOP]
+            | self.bit_boards[black::ROOK]
+            | self.bit_boards[black::QUEEN]
+            | self.bit_boards[black::KING];
 
         self
     }
