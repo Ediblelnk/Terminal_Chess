@@ -109,6 +109,21 @@ pub mod bit_math {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Move {
+    pub start: u64,
+    pub end: u64,
+}
+
+impl Move {
+    pub fn new(start: &u64, end: &u64) -> Self {
+        Self {
+            start: *start,
+            end: *end,
+        }
+    }
+}
+
 /**
  * Each board is stored as bitmaps of the pieces, since a board is 8x8 we use a u64
  * The bit position corresponds to a place on the board:
@@ -130,6 +145,7 @@ pub struct Chess {
     bit_boards: [u64; index::EMPTY],
     white_bits: u64,
     black_bits: u64,
+    turn: u16,
 }
 
 #[derive(Debug)]
@@ -157,16 +173,20 @@ impl Chess {
             ],
             white_bits: 0,
             black_bits: 0,
+            turn: 0,
         };
 
-        s.update_black_bits().update_white_bits();
-
-        s
+        *s.update_black_bits().update_white_bits()
     }
 
-    pub fn evaluate(self: &Self, for_white: &bool) -> isize {
-        (self.material_sum_white() as isize - self.material_sum_black() as isize)
-            * *for_white as isize
+    pub fn evaluate(self: &Self) -> isize {
+        if self.bit_boards[white::KING] == 0 {
+            return isize::MIN + 1;
+        } else if self.bit_boards[black::KING] == 0 {
+            return isize::MAX;
+        }
+
+        self.material_sum_white() as isize - self.material_sum_black() as isize
     }
 
     /**
@@ -191,8 +211,54 @@ impl Chess {
             + self.bit_boards[black::QUEEN].count_ones() * weights::QUEEN
     }
 
-    pub fn get_white_moves(self: &Self) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    /**
+     * uses a minimax algorithm with built-in alpha beta pruning to speed up the search
+     * https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning
+     */
+    pub fn minimax(self: &Self, depth: u8, mut alpha: isize, beta: isize) -> (isize, Option<Move>) {
+        // run out of depth or game over
+        if depth == 0 || self.game_over() {
+            return (self.evaluate(), None);
+        }
+
+        let mut max_eval = (isize::MIN + 1, None);
+
+        // for each move, see what the best opponent move is
+        for bit_move in self.get_moves() {
+            let mut hypothetical_board = self.clone();
+            hypothetical_board.move_piece(bit_move);
+
+            let local_eval = hypothetical_board.minimax(depth - 1, -beta, -alpha);
+
+            max_eval = match max_eval.0 < local_eval.0 {
+                true => (local_eval.0, Some(bit_move)),
+                false => max_eval,
+            };
+
+            alpha = alpha.max(local_eval.0);
+
+            if alpha >= beta {
+                break;
+            }
+        }
+
+        return max_eval;
+    }
+
+    fn game_over(self: &Self) -> bool {
+        self.bit_boards[black::KING] == 0 || self.bit_boards[white::KING] == 0
+    }
+
+    fn get_moves(self: &Self) -> Vec<Move> {
+        if self.turn % 2 == 0 {
+            self.get_white_moves()
+        } else {
+            self.get_black_moves()
+        }
+    }
+
+    fn get_white_moves(self: &Self) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
 
         let mut bit_piece = 1u64;
         for _ in 0..u64::BITS {
@@ -223,8 +289,8 @@ impl Chess {
         moves
     }
 
-    pub fn get_black_moves(self: &Self) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    fn get_black_moves(self: &Self) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
 
         let mut bit_piece = 1u64;
         for _ in 0..u64::BITS {
@@ -258,8 +324,8 @@ impl Chess {
     /**
      * returns the move pairs for the bit_piece when moved as a rook
      */
-    fn get_cartesian_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    fn get_cartesian_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
 
         moves.append(&mut self.get_marching_moves(
             |x| x.rotate_left(1),
@@ -292,8 +358,8 @@ impl Chess {
     /**
      * returns the move pairs for the bit_piece when moved as a bishop
      */
-    fn get_diagonal_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    fn get_diagonal_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
 
         moves.append(&mut self.get_marching_moves(
             |x| x.rotate_left(9),
@@ -323,19 +389,19 @@ impl Chess {
         moves
     }
 
-    fn get_black_pawn_moves(self: &Self, bit_piece: &u64) -> Vec<(u64, u64)> {
+    fn get_black_pawn_moves(self: &Self, bit_piece: &u64) -> Vec<Move> {
         let all_bits = self.white_bits | self.black_bits;
-        let mut moves = Vec::<(u64, u64)>::new();
+        let mut moves = Vec::<Move>::new();
 
         // strictly moving move(s)
         let move_1 = bit_piece.rotate_right(8);
         if move_1 & all_bits == 0 {
-            moves.push((*bit_piece, move_1));
+            moves.push(Move::new(bit_piece, &move_1));
 
             if bit_math::is_rank_7(&bit_piece) {
                 let move_2 = bit_piece.rotate_right(16);
                 if move_2 & all_bits == 0 {
-                    moves.push((*bit_piece, move_2));
+                    moves.push(Move::new(bit_piece, &move_2));
                 }
             }
         }
@@ -345,33 +411,33 @@ impl Chess {
         if !bit_math::is_file_a(&bit_piece) {
             let left_attack = bit_piece.rotate_right(7);
             if left_attack & self.white_bits > 0 {
-                moves.push((*bit_piece, left_attack));
+                moves.push(Move::new(bit_piece, &left_attack));
             }
         }
         // right attack
         if !bit_math::is_file_h(&bit_piece) {
             let right_attack = bit_piece.rotate_right(9);
             if right_attack & self.white_bits > 0 {
-                moves.push((*bit_piece, right_attack));
+                moves.push(Move::new(bit_piece, &right_attack));
             }
         }
 
         moves
     }
 
-    fn get_white_pawn_moves(self: &Self, bit_piece: &u64) -> Vec<(u64, u64)> {
+    fn get_white_pawn_moves(self: &Self, bit_piece: &u64) -> Vec<Move> {
         let all_bits = self.white_bits | self.black_bits;
-        let mut moves = Vec::<(u64, u64)>::new();
+        let mut moves = Vec::<Move>::new();
 
         // strictly moving move(s)
         let move_1 = bit_piece.rotate_left(8);
         if move_1 & all_bits == 0 {
-            moves.push((*bit_piece, move_1));
+            moves.push(Move::new(bit_piece, &move_1));
 
             if bit_math::is_rank_2(&bit_piece) {
                 let move_2 = bit_piece.rotate_left(16);
                 if move_2 & all_bits == 0 {
-                    moves.push((*bit_piece, move_2));
+                    moves.push(Move::new(bit_piece, &move_2));
                 }
             }
         }
@@ -381,22 +447,22 @@ impl Chess {
         if !bit_math::is_file_a(&bit_piece) {
             let left_attack = bit_piece.rotate_left(9);
             if left_attack & self.black_bits > 0 {
-                moves.push((*bit_piece, left_attack));
+                moves.push(Move::new(bit_piece, &left_attack));
             }
         }
         // right attack
         if !bit_math::is_file_h(&bit_piece) {
             let right_attack = bit_piece.rotate_left(7);
             if right_attack & self.black_bits > 0 {
-                moves.push((*bit_piece, right_attack));
+                moves.push(Move::new(bit_piece, &right_attack));
             }
         }
 
         moves
     }
 
-    fn get_knight_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    fn get_knight_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
 
         // precompute files
         let file_a = bit_math::is_file_a(bit_piece);
@@ -493,8 +559,8 @@ impl Chess {
         moves
     }
 
-    fn get_king_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    fn get_king_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
 
         let file_a = bit_math::is_file_a(bit_piece);
         let file_h = bit_math::is_file_h(bit_piece);
@@ -596,8 +662,8 @@ impl Chess {
         break_fn: fn(&u64) -> bool,
         is_white: &bool,
         bit_piece: &u64,
-    ) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    ) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
         let mut test_move = bit_piece.clone();
 
         loop {
@@ -609,9 +675,9 @@ impl Chess {
             }
 
             match self.approve_move(&is_white, &test_move) {
-                (true, true) => moves.push((*bit_piece, test_move)),
+                (true, true) => moves.push(Move::new(bit_piece, &test_move)),
                 (true, false) => {
-                    moves.push((*bit_piece, test_move));
+                    moves.push(Move::new(bit_piece, &test_move));
                     break;
                 }
                 (false, _) => break,
@@ -629,12 +695,12 @@ impl Chess {
         shifting_fn: fn(&u64) -> u64,
         is_white: &bool,
         bit_piece: &u64,
-    ) -> Vec<(u64, u64)> {
-        let mut moves = Vec::<(u64, u64)>::new();
+    ) -> Vec<Move> {
+        let mut moves = Vec::<Move>::new();
         let test_move = shifting_fn(&bit_piece);
 
         if self.approve_move(&is_white, &test_move).0 {
-            moves.push((*bit_piece, test_move))
+            moves.push(Move::new(bit_piece, &test_move))
         }
 
         moves
@@ -668,14 +734,35 @@ impl Chess {
         self
     }
 
+    fn promote_pawns(self: &mut Self) -> &mut Self {
+        // promote white pawns
+        if self.bit_boards[white::PAWN] & board::RANK_8 > 0 {
+            // add the queens to the board
+            self.bit_boards[white::QUEEN] |= self.bit_boards[white::PAWN] & board::RANK_8;
+            // remove the promoted pawns from the board
+            self.bit_boards[white::PAWN] &= !board::RANK_8;
+        }
+        // promote black pawns
+        if self.bit_boards[black::PAWN] & board::RANK_1 > 0 {
+            // add the queens to the board
+            self.bit_boards[black::QUEEN] |= self.bit_boards[black::PAWN] & board::RANK_1;
+            // remove the promoted pawns from the board
+            self.bit_boards[black::PAWN] &= !board::RANK_1;
+        }
+
+        self
+    }
+
     /**
      * moves a piece based on its starting and ending position, making sure to remove any pieces it captures
      */
-    pub fn move_piece(self: &mut Self, (bit_move_start, bit_mov_end): (u64, u64)) -> &mut Self {
-        self.bit_boards = self.bit_boards.map(|bit_board| bit_board & !bit_mov_end);
-        self.bit_boards[self.get_index_moved(bit_move_start).unwrap()] ^=
-            bit_move_start | bit_mov_end;
-        self.update_black_bits().update_white_bits()
+    pub fn move_piece(self: &mut Self, bit_move: Move) -> &mut Self {
+        self.bit_boards = self.bit_boards.map(|bit_board| bit_board & !bit_move.end);
+        self.bit_boards[self.get_index_moved(bit_move.start).unwrap()] ^=
+            bit_move.start | bit_move.end;
+
+        self.turn += 1;
+        self.promote_pawns().update_black_bits().update_white_bits()
     }
 
     /**
