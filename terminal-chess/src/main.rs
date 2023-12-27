@@ -11,7 +11,7 @@ fn main() {
         let mut x: (isize, Option<lib::Move>) = (0, None);
         for i in 1..7 {
             let start = Instant::now();
-            x = c.minimax(i, isize::MIN + 1, isize::MAX);
+            x = c.minimax(i, isize::MIN + 2, isize::MAX - 1);
             let duration = start.elapsed();
             println!("Time: {:?}", duration);
             println!("{:?}", x);

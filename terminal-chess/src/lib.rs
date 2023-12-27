@@ -180,13 +180,21 @@ impl Chess {
     }
 
     pub fn evaluate(self: &Self) -> isize {
+        let perspective = match self.turn % 2 {
+            0 => 1,
+            1 => -1,
+            _ => unreachable!(),
+        };
+
         if self.bit_boards[white::KING] == 0 {
-            return isize::MIN + 1;
+            return (isize::MIN + 1) * perspective;
         } else if self.bit_boards[black::KING] == 0 {
-            return isize::MAX;
+            self.print_board();
+            println!("{}", isize::MAX * perspective);
+            return isize::MAX * perspective;
         }
 
-        self.material_sum_white() as isize - self.material_sum_black() as isize
+        (self.material_sum_white() as isize - self.material_sum_black() as isize) * perspective
     }
 
     /**
