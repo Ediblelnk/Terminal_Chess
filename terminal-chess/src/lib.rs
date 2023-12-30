@@ -1,6 +1,6 @@
 use board::{
     index::{self, black, white},
-    weights,
+    position_tables, weights,
 };
 
 pub mod board {
@@ -29,12 +29,98 @@ pub mod board {
         0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_11111111;
 
     pub mod weights {
-        pub const PAWN: u32 = 10;
-        pub const KNIGHT: u32 = 30;
-        pub const BISHOP: u32 = 32;
-        pub const ROOK: u32 = 50;
-        pub const QUEEN: u32 = 90;
+        pub const PAWN: u32 = 100;
+        pub const KNIGHT: u32 = 320;
+        pub const BISHOP: u32 = 330;
+        pub const ROOK: u32 = 500;
+        pub const QUEEN: u32 = 900;
+        pub const KING: u32 = 20_000;
     }
+
+    /**
+     * Source for the used positional Piece-Square Tables:
+     * https://www.chessprogramming.org/Simplified_Evaluation_Function 
+     */
+    #[rustfmt::skip]
+    pub mod position_tables {
+        pub const PAWN: [isize; 64] = [
+             0,  0,  0,  0,  0,  0,  0,  0, 
+            50, 50, 50, 50, 50, 50, 50, 50, 
+            10, 10, 20, 30, 30, 20, 10, 10,
+             5,  5, 10, 25, 25, 10,  5,  5,
+             0,  0,  0, 20, 20,  0,  0,  0,
+             5, -5,-10,  0,  0,-10, -5,  5,
+             5, 10, 10,-20,-20, 10, 10,  5,
+             0,  0,  0,  0,  0,  0,  0,  0,
+        ];
+
+        pub const KNIGHT: [isize; 64] = [
+            -50,-40,-30,-30,-30,-30,-40,-50,
+            -40,-20,  0,  0,  0,  0,-20,-40,
+            -30,  0, 10, 15, 15, 10,  0,-30,
+            -30,  5, 15, 20, 20, 15,  5,-30,
+            -30,  0, 15, 20, 20, 15,  0,-30,
+            -30,  5, 10, 15, 15, 10,  5,-30,
+            -40,-20,  0,  5,  5,  0,-20,-40,
+            -50,-40,-30,-30,-30,-30,-40,-50,
+        ];
+
+        pub const BISHOP: [isize; 64] = [
+            -20,-10,-10,-10,-10,-10,-10,-20,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -10,  0,  5, 10, 10,  5,  0,-10,
+            -10,  5,  5, 10, 10,  5,  5,-10,
+            -10,  0, 10, 10, 10, 10,  0,-10,
+            -10, 10, 10, 10, 10, 10, 10,-10,
+            -10,  5,  0,  0,  0,  0,  5,-10,
+            -20,-10,-10,-10,-10,-10,-10,-20,
+        ];
+
+        pub const ROOK: [isize; 64] = [
+              0,  0,  0,  0,  0,  0,  0,  0,
+              5, 10, 10, 10, 10, 10, 10,  5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+             -5,  0,  0,  0,  0,  0,  0, -5,
+              0,  0,  0,  5,  5,  0,  0,  0
+        ];
+
+        pub const QUEEN: [isize; 64] = [
+            -20,-10,-10, -5, -5,-10,-10,-20,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -10,  0,  5,  5,  5,  5,  0,-10,
+             -5,  0,  5,  5,  5,  5,  0, -5,
+              0,  0,  5,  5,  5,  5,  0, -5,
+            -10,  5,  5,  5,  5,  5,  0,-10,
+            -10,  0,  5,  0,  0,  0,  0,-10,
+            -20,-10,-10, -5, -5,-10,-10,-20
+        ];
+
+        pub const KING_MIDDLE: [isize; 64] = [
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -20,-30,-30,-40,-40,-30,-30,-20,
+            -10,-20,-20,-20,-20,-20,-20,-10,
+             20, 20,  0,  0,  0,  0, 20, 20,
+             20, 30, 10,  0,  0, 10, 30, 20
+        ];
+
+        pub const KING_END: [isize; 64] = [
+            -50,-40,-30,-20,-20,-30,-40,-50,
+            -30,-20,-10,  0,  0,-10,-20,-30,
+            -30,-10, 20, 30, 30, 20,-10,-30,
+            -30,-10, 30, 40, 40, 30,-10,-30,
+            -30,-10, 30, 40, 40, 30,-10,-30,
+            -30,-10, 20, 30, 30, 20,-10,-30,
+            -30,-30,  0,  0,  0,  0,-30,-30,
+            -50,-30,-30,-30,-30,-30,-30,-50
+        ];
+    }
+
     pub mod index {
         pub mod black {
             pub const PAWN: usize = 0;
@@ -179,6 +265,9 @@ impl Chess {
         *s.update_black_bits().update_white_bits()
     }
 
+    /**
+     * Evaluates a position, based on who's turn it currently is
+     */
     pub fn evaluate(self: &Self) -> isize {
         let perspective = match self.turn % 2 {
             0 => 1,
@@ -186,15 +275,18 @@ impl Chess {
             _ => unreachable!(),
         };
 
-        if self.bit_boards[white::KING] == 0 {
-            return (isize::MIN + 1) * perspective;
-        } else if self.bit_boards[black::KING] == 0 {
-            self.print_board();
-            println!("{}", isize::MAX * perspective);
-            return isize::MAX * perspective;
-        }
+        // if self.bit_boards[white::KING] == 0 {
+        //     return (isize::MIN + 1) * perspective;
+        // } else if self.bit_boards[black::KING] == 0 {
+        //     self.print_board();
+        //     println!("{}", isize::MAX * perspective);
+        //     return isize::MAX * perspective;
+        // }
 
-        (self.material_sum_white() as isize - self.material_sum_black() as isize) * perspective
+        (self.material_sum_white() as isize + self.positional_sum_white()
+            - self.material_sum_black() as isize
+            - self.positional_sum_black())
+            * perspective
     }
 
     /**
@@ -206,6 +298,7 @@ impl Chess {
             + self.bit_boards[white::BISHOP].count_ones() * weights::BISHOP
             + self.bit_boards[white::ROOK].count_ones() * weights::ROOK
             + self.bit_boards[white::QUEEN].count_ones() * weights::QUEEN
+            + self.bit_boards[white::KING].count_ones() * weights::KING
     }
 
     /**
@@ -217,6 +310,81 @@ impl Chess {
             + self.bit_boards[black::BISHOP].count_ones() * weights::BISHOP
             + self.bit_boards[black::ROOK].count_ones() * weights::ROOK
             + self.bit_boards[black::QUEEN].count_ones() * weights::QUEEN
+            + self.bit_boards[black::KING].count_ones() * weights::KING
+    }
+
+    /**
+     * evaluates the position of the board and gives it a score for white
+     */
+    fn positional_sum_white(self: &Self) -> isize {
+        let mut sum = 0isize;
+        let mut mask = 1u64;
+        for i in 0..64 {
+            // if there is no white piece here, just move on
+            if mask & self.white_bits == 0 {
+                mask <<= 1;
+                continue;
+            }
+
+            if mask & self.bit_boards[white::PAWN] > 0 {
+                sum += position_tables::PAWN[board::MAX_SQUARE_INDEX - i];
+            } else if mask & self.bit_boards[white::KNIGHT] > 0 {
+                sum += position_tables::KNIGHT[board::MAX_SQUARE_INDEX - i];
+            } else if mask & self.bit_boards[white::BISHOP] > 0 {
+                sum += position_tables::BISHOP[board::MAX_SQUARE_INDEX - i];
+            } else if mask & self.bit_boards[white::ROOK] > 0 {
+                sum += position_tables::ROOK[board::MAX_SQUARE_INDEX - i];
+            } else if mask & self.bit_boards[white::QUEEN] > 0 {
+                sum += position_tables::QUEEN[board::MAX_SQUARE_INDEX - i];
+            } else if mask & self.bit_boards[white::KING] > 0 {
+                if self.bit_boards[white::QUEEN] != 0 || self.bit_boards[black::QUEEN] != 0 {
+                    sum += position_tables::KING_MIDDLE[board::MAX_SQUARE_INDEX - i];
+                } else {
+                    sum += position_tables::KING_END[board::MAX_SQUARE_INDEX - i];
+                }
+            }
+
+            mask <<= 1;
+        }
+
+        sum
+    }
+
+    /**
+     * evaluates the position of the board and gives it a score for black
+     */
+    fn positional_sum_black(self: &Self) -> isize {
+        let mut sum = 0isize;
+        let mut mask = 1u64;
+        for i in 0..64 {
+            // if there is no white piece here, just move on
+            if mask & self.black_bits == 0 {
+                mask <<= 1;
+                continue;
+            }
+
+            if mask & self.bit_boards[black::PAWN] > 0 {
+                sum += position_tables::PAWN[i];
+            } else if mask & self.bit_boards[black::KNIGHT] > 0 {
+                sum += position_tables::KNIGHT[i];
+            } else if mask & self.bit_boards[black::BISHOP] > 0 {
+                sum += position_tables::BISHOP[i];
+            } else if mask & self.bit_boards[black::ROOK] > 0 {
+                sum += position_tables::ROOK[i];
+            } else if mask & self.bit_boards[black::QUEEN] > 0 {
+                sum += position_tables::QUEEN[i];
+            } else if mask & self.bit_boards[black::KING] > 0 {
+                if self.bit_boards[white::QUEEN] != 0 || self.bit_boards[black::QUEEN] != 0 {
+                    sum += position_tables::KING_MIDDLE[i];
+                } else {
+                    sum += position_tables::KING_END[i];
+                }
+            }
+
+            mask <<= 1;
+        }
+
+        sum
     }
 
     /**
@@ -225,14 +393,14 @@ impl Chess {
      */
     pub fn minimax(self: &Self, depth: u8, mut alpha: isize, beta: isize) -> (isize, Option<Move>) {
         // run out of depth or game over
-        if depth == 0 || self.game_over() {
+        if depth == 0 {
             return (self.evaluate(), None);
         }
 
         let mut max_eval = (isize::MIN + 1, None);
 
         // for each move, see what the best opponent move is
-        for bit_move in self.get_moves() {
+        for bit_move in self.get_legal_moves() {
             let mut hypothetical_board = self.clone();
             hypothetical_board.move_piece(bit_move);
 
@@ -253,16 +421,45 @@ impl Chess {
         return max_eval;
     }
 
-    fn game_over(self: &Self) -> bool {
-        self.bit_boards[black::KING] == 0 || self.bit_boards[white::KING] == 0
-    }
-
-    fn get_moves(self: &Self) -> Vec<Move> {
+    /**
+     * Gets the raw moves for each piece.
+     * Does not *ensure* that they will al be legal, and sometimes need to be filtered.
+     */
+    fn get_pseudo_moves(self: &Self) -> Vec<Move> {
         if self.turn % 2 == 0 {
             self.get_white_moves()
         } else {
             self.get_black_moves()
         }
+    }
+
+    /**
+     * Gets the legal moves for each piece
+     */
+    pub fn get_legal_moves(self: &Self) -> Vec<Move> {
+        let king_index = if self.turn % 2 == 0 {
+            white::KING
+        } else {
+            black::KING
+        };
+
+        let pseudo_moves = self.get_pseudo_moves();
+        let mut legal_moves = Vec::<Move>::new();
+
+        // for each move, make sure every possible response move cannot take the king
+        for m in pseudo_moves {
+            let mut hypothetical_board = self.clone();
+            if !hypothetical_board
+                .move_piece(m)
+                .get_pseudo_moves()
+                .into_iter()
+                .any(|m| m.end == hypothetical_board.bit_boards[king_index])
+            {
+                legal_moves.push(m);
+            }
+        }
+
+        legal_moves
     }
 
     fn get_white_moves(self: &Self) -> Vec<Move> {
@@ -817,8 +1014,7 @@ impl Chess {
      */
     fn get_square_array(self: &Self) -> [usize; 64] {
         let mut board = [index::EMPTY; 64];
-        let mut place: u64 =
-            0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000001;
+        let mut place = 1u64;
 
         // goes through each of the bits and determines what piece is there
         for i in 0..u64::BITS {

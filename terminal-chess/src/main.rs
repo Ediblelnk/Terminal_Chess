@@ -8,15 +8,16 @@ fn main() {
     let mut buf = String::new();
     loop {
         let _ = std::io::stdin().read_line(&mut buf);
-        let mut x: (isize, Option<lib::Move>) = (0, None);
-        for i in 1..7 {
-            let start = Instant::now();
-            x = c.minimax(i, isize::MIN + 2, isize::MAX - 1);
-            let duration = start.elapsed();
-            println!("Time: {:?}", duration);
-            println!("{:?}", x);
-        }
+
+        let start = Instant::now();
+        let x = c.minimax(5, isize::MIN + 2, isize::MAX - 1);
+        let duration = start.elapsed();
+
+        println!("Time: {:?}", duration);
+        println!("{:?}\n", x);
+        println!("Eval: {}", c.evaluate());
         c.move_piece(x.1.unwrap());
+        println!("Legal Moves: {:?}", c.get_legal_moves());
         c.print_board();
     }
 }
