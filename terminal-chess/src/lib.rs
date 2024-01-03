@@ -410,7 +410,7 @@ impl Chess {
 
     fn get_user_move(self: &Self) -> Move {
         loop {
-            println!("\nPlease input your move:");
+            println!("\nPlease input your move, use format `x1 to y2`:");
             let mut input = String::new();
             io::stdin()
                 .read_line(&mut input)
