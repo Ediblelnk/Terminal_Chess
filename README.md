@@ -12,10 +12,6 @@ Open up a terminal/command prompt and navigate to the `terminal-chess` directory
 
 To run through cargo, navigate to the `terminal-chess/terminal-chess` directory. Then type `cargo run`.
 
-### Linux
-
-To run on Linux, navigate to the `terminal-chess/linux` directory. Then run the executable by entering `./terminal-chess` .
-
 ### Windows
 
 To run on Windows, navigate to the `terminal-chess/windows` directory. Then run the executable by entering `terminal-chess.exe`.
