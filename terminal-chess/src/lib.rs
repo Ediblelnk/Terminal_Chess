@@ -2,6 +2,8 @@ use board::{
     index::{self, black, white},
     position_tables, weights,
 };
+use rand::Rng;
+use rayon::prelude::*;
 use std::io;
 
 pub mod board {
@@ -21,12 +23,12 @@ pub mod board {
  \ \_____\  \ \_\ \_\  \ \_____\  \/\_____\  \/\_____\                               
   \/_____/   \/_/\/_/   \/_____/   \/_____/   \/_____/";
     pub const CREDITS: &'static str = r"
-Created by: Peter Schaefer
-Inspired by: Sebastian Lague, @SebastianLague on YouTube";
+    Created by: Peter Schaefer
+    Inspired by: Sebastian Lague, @SebastianLague on YouTube";
     pub const RANKS: usize = 8;
     pub const FILES: usize = 8;
-    pub const TOP_BORDER: &'static str = r".-.================================================================================================.-.";
-    pub const BOTTOM_BORDER: &'static str = r"'-'=========[a]=========[b]=========[c]=========[d]=========[e]=========[f]=========[g]=========[h]'-'";
+    pub const TOP_BORDER: &'static str = r" .-.================================================================================================.-.";
+    pub const BOTTOM_BORDER: &'static str = r" '-'=========[a]=========[b]=========[c]=========[d]=========[e]=========[f]=========[g]=========[h]'-'";
     pub const MOVE_PATTERN: &'static str = r"to";
     pub const LAYERS_PER_RANK: usize = 5;
     pub const MAX_SQUARE_INDEX: usize = 63;
@@ -231,7 +233,7 @@ impl Move {
 }
 
 /**
- * Each board is stored as bitmaps of the pieces, since a board is 8x8 we use a u64
+ * Each board is stored as bitmaps of the pieces, since a board is 8x8 we use a u64.
  * The bit position corresponds to a place on the board:
  *   `-------------------------`
  * 8 | 63 62 61 60 59 58 57 56 |
@@ -289,39 +291,107 @@ impl Chess {
 
     pub fn play(self: &mut Self) -> &mut Self {
         println!("{}\n{}\n\n", board::TITLE, board::CREDITS);
+        println!("Would you like to play as black or white? ");
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read input.");
+
+        if input.to_ascii_lowercase().contains("black") {
+            // make a random move for white, so the player can play as black
+            let moves = self.get_legal_moves();
+            self.move_piece(moves[rand::thread_rng().gen_range(0..moves.len())]);
+        }
+
         loop {
-            self.print_board().make_user_move();
-            if self.game_over {
+            if self
+                .clear_screen()
+                .print_title()
+                .print_board()
+                .make_user_move()
+                .game_over
+            {
                 break;
             }
-            self.print_board().make_ai_move();
-            if self.game_over {
+
+            if self
+                .clear_screen()
+                .print_title()
+                .print_board()
+                .make_ai_move()
+                .game_over
+            {
                 break;
             }
         }
 
-        // self.finish_game()
+        self.finish_game();
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read input.");
 
+        self
+    }
+
+    /**
+     * determines who won the game and congratulates them
+     */
+    fn finish_game(self: &mut Self) -> &mut Self {
+        // the game ended because someone couldn't play a move, let's see if the other player has checkmate
+        self.turn += 1;
+        if self.get_legal_moves().into_iter().any(|mv| {
+            mv.end == self.bit_boards[white::KING] || mv.end == self.bit_boards[black::KING]
+        }) {
+            // there was a checkmate!
+            println!(
+                "\nThe winner of this game is {}!",
+                if self.turn % 2 == 0 { "WHITE" } else { "BLACK" }
+            );
+        } else {
+            println!("\nThis game ends in a STALEMATE!");
+        }
+
+        self
+    }
+
+    /**
+     * prints the title for the game
+     */
+    fn print_title(self: &mut Self) -> &mut Self {
+        println!("{}\n{}\n\n", board::TITLE, board::CREDITS);
+        self
+    }
+
+    /**
+     * clears the screen
+     */
+    fn clear_screen(self: &mut Self) -> &mut Self {
+        for _ in 0..50 {
+            println!();
+        }
         self
     }
 
     /**
      * makes an move using the ai chess engine, or marks the game as over
      */
-    pub fn make_ai_move(self: &mut Self) -> &mut Self {
-        let mut moves = self.evaluate_legal_moves(4);
+    fn make_ai_move(self: &mut Self) -> &mut Self {
+        println!("\nOpponent is thinking...");
+        let mut moves = self.evaluate_legal_moves(5);
 
         if moves.len() == 0 {
             self.game_over = true;
             return self;
         }
 
-        println!("Thinking...");
         moves.sort_by(|(eval1, _), (eval2, _)| eval1.cmp(eval2));
         self.move_piece(moves[0].1)
     }
 
-    pub fn make_user_move(self: &mut Self) -> &mut Self {
+    /**
+     * prompts the user for a legal move to make, and then makes that move
+     */
+    fn make_user_move(self: &mut Self) -> &mut Self {
         let possible_moves = self.get_legal_moves();
         if possible_moves.len() == 0 {
             self.game_over = true;
@@ -333,7 +403,7 @@ impl Chess {
             if possible_moves.contains(&potential_move) {
                 break potential_move;
             } else {
-                println!("That is not a legal move!");
+                println!("\nThat is not a legal move!");
             }
         })
     }
@@ -347,7 +417,9 @@ impl Chess {
                 .expect("Failed to read input.");
             match Self::parse_user_move(input) {
                 Ok(mv) => break mv,
-                Err(_) => println!("Incorrect move format! Use format `x1 to y2`."),
+                Err(_) => println!(
+                    "Incorrect move format! Use format `x1 to y2`, for example `a1 to b2`."
+                ),
             }
         }
     }
@@ -356,8 +428,8 @@ impl Chess {
      * parses a users input and returns the corresponding moving is the input was valid
      */
     fn parse_user_move(input: String) -> Result<Move, ()> {
-        let parts = input
-            .trim()
+        let parts = input.trim().to_lowercase();
+        let parts = parts
             .split(board::MOVE_PATTERN)
             .map(|input| input.trim())
             .collect::<Vec<_>>();
@@ -528,6 +600,7 @@ impl Chess {
 
         // for each move, see what the best opponent move is
         for bit_move in self.get_pseudo_moves() {
+            // a good eval for out opponent is a bad eval for us
             let evaluation = -self
                 .clone()
                 .move_piece(bit_move)
@@ -544,17 +617,18 @@ impl Chess {
     }
 
     /**
-     * Goes through each move and gives it a score of how good it is
+     * Goes through each move and gives it a score of how good it is.
+     * 0 is neutral, white >0 is good, and <0 is bad
      */
-    pub fn evaluate_legal_moves(self: &Self, depth: u8) -> Vec<(isize, Move)> {
+    fn evaluate_legal_moves(self: &Self, depth: u8) -> Vec<(isize, Move)> {
         self.get_legal_moves()
-            .into_iter()
+            .par_iter()
             .map(|mv| {
                 (
                     self.clone()
-                        .move_piece(mv)
+                        .move_piece(*mv)
                         .minimax(depth, isize::MIN + 1, isize::MAX),
-                    mv,
+                    mv.clone(),
                 )
             })
             .collect()
@@ -562,7 +636,7 @@ impl Chess {
 
     /**
      * Gets the raw moves for each piece.
-     * Does not *ensure* that they will al be legal, and sometimes need to be filtered.
+     * Does not *ensure* that they will all be legal, and sometimes need to be filtered.
      */
     fn get_pseudo_moves(self: &Self) -> Vec<Move> {
         if self.turn % 2 == 0 {
@@ -575,7 +649,7 @@ impl Chess {
     /**
      * Gets the legal moves for each piece
      */
-    pub fn get_legal_moves(self: &Self) -> Vec<Move> {
+    fn get_legal_moves(self: &Self) -> Vec<Move> {
         let king_index = if self.turn % 2 == 0 {
             white::KING
         } else {
@@ -601,6 +675,9 @@ impl Chess {
         legal_moves
     }
 
+    /**
+     * Gets the moves for all of the white pieces on the board
+     */
     fn get_white_moves(self: &Self) -> Vec<Move> {
         let mut moves = Vec::<Move>::new();
 
@@ -633,6 +710,9 @@ impl Chess {
         moves
     }
 
+    /**
+     * Gets the moves for all of the black pieces on the board
+     */
     fn get_black_moves(self: &Self) -> Vec<Move> {
         let mut moves = Vec::<Move>::new();
 
@@ -733,6 +813,9 @@ impl Chess {
         moves
     }
 
+    /**
+     * Gets moves, assuming bit_piece is a black pawn.
+     */
     fn get_black_pawn_moves(self: &Self, bit_piece: &u64) -> Vec<Move> {
         let all_bits = self.white_bits | self.black_bits;
         let mut moves = Vec::<Move>::new();
@@ -769,6 +852,9 @@ impl Chess {
         moves
     }
 
+    /**
+     * Gets moves, assuming bit_piece is a white pawn.
+     */
     fn get_white_pawn_moves(self: &Self, bit_piece: &u64) -> Vec<Move> {
         let all_bits = self.white_bits | self.black_bits;
         let mut moves = Vec::<Move>::new();
@@ -805,6 +891,9 @@ impl Chess {
         moves
     }
 
+    /**
+     * Gets moves, assuming bit_piece is a knight.
+     */
     fn get_knight_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<Move> {
         let mut moves = Vec::<Move>::new();
 
@@ -903,6 +992,9 @@ impl Chess {
         moves
     }
 
+    /**
+     * Gets moves, assuming bit_piece is a king.
+     */
     fn get_king_moves(self: &Self, bit_piece: &u64, is_white: &bool) -> Vec<Move> {
         let mut moves = Vec::<Move>::new();
 
@@ -1100,7 +1192,7 @@ impl Chess {
     /**
      * moves a piece based on its starting and ending position, making sure to remove any pieces it captures
      */
-    pub fn move_piece(self: &mut Self, bit_move: Move) -> &mut Self {
+    fn move_piece(self: &mut Self, bit_move: Move) -> &mut Self {
         self.bit_boards = self.bit_boards.map(|bit_board| bit_board & !bit_move.end);
         self.bit_boards[self.get_index_moved(bit_move.start).unwrap()] ^=
             bit_move.start | bit_move.end;
@@ -1129,9 +1221,9 @@ impl Chess {
         for rank in 0..board::RANKS {
             for layer in 0..board::LAYERS_PER_RANK {
                 if layer == 0 {
-                    print!("[{}]", 8 - rank);
+                    print!(" [{}]", 8 - rank);
                 } else {
-                    print!("| |");
+                    print!(" | |");
                 }
                 for file in 0..board::FILES {
                     print!(

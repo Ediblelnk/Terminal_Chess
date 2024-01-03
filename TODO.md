@@ -6,4 +6,4 @@
 - [ ] Improve the efficiency of alpha-beta pruning by ordering the moves before searching
 - [x] Implement a user input so people can play against the machine
 - [ ] Improve documentation for ease of use and understandability
-- [ ] Compute the evaluation of moves in parallel
+- [x] Compute the evaluation of moves in quasi-parallel

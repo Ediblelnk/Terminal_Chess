@@ -18,8 +18,9 @@ To run on Linux, navigate to the `terminal-chess/linux` directory. Then run the 
 
 ### Windows
 
-To run on Windows, navigate to the `terminal-chess/windows` directory. Then run the executable by entering `./terminal-chess.exe`.
+To run on Windows, navigate to the `terminal-chess/windows` directory. Then run the executable by entering `terminal-chess.exe`.
 
 ## Limitations & Known Issues
 
 - En Passant and Castling are not considered legal moves.
+- Under specific circumstances, the bot will not deliver checkmate, and instead will get stuck in a loop of almost checkmate.
